@@ -14,7 +14,7 @@ app.use(cors({
 app.use(express.json({ limit: '2mb' }));
 
 // Serve static frontend files (index.html, app.js, etc.)
-app.use(express.static('.'));
+app.use(express.static(__dirname));
 
 // ─── AI Analysis Endpoint ──────────────────────────────────────────────────────
 app.post('/api/analyze', async (req, res) => {
