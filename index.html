@@ -1,0 +1,556 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>WpAI Insights — WhatsApp Chat Analyzer</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%23a78bfa'/%3E%3Ctext x='50' y='68' font-size='55' text-anchor='middle' fill='%2306070d' font-family='monospace' font-weight='900'%3EW%3C/text%3E%3C/svg%3E" />
+  <meta name="description" content="Analyze your WhatsApp chats with AI-powered insights. Visualize message patterns, emoji usage, word clouds, and get AI-generated summaries — all privately in your browser." />
+
+  <!-- Preconnect for performance -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+
+  <!-- Styles -->
+  <link rel="stylesheet" href="style.css" />
+
+  <!-- CDN Libraries -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/wordcloud@1.2.2/src/wordcloud2.js" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js" defer></script>
+</head>
+<body>
+
+<!-- ════════════════════════════════════════════════════════════════════════════
+     AMBIENT BACKGROUND — drifting glow orbs (purely decorative)
+     ════════════════════════════════════════════════════════════════════════════ -->
+<div class="bg-orbs" aria-hidden="true">
+  <div class="bg-orb bg-orb-1"></div>
+  <div class="bg-orb bg-orb-2"></div>
+  <div class="bg-orb bg-orb-3"></div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════════════════════
+     THEME TOGGLE — floating button, visible on both screens
+     ════════════════════════════════════════════════════════════════════════════ -->
+<button id="theme-toggle-btn" class="theme-toggle" type="button" aria-label="Toggle light/dark theme" title="Toggle light/dark theme">
+  <span id="theme-toggle-icon">🌙</span>
+</button>
+
+<!-- ════════════════════════════════════════════════════════════════════════════
+     UPLOAD SCREEN
+     ════════════════════════════════════════════════════════════════════════════ -->
+<div id="upload-screen" class="screen">
+  <div class="upload-hero">
+
+    <!-- Brand badge -->
+    <div class="brand-badge">
+      <div class="brand-badge-icon">💬</div>
+      WpAI Insights
+    </div>
+
+    <!-- Hero heading -->
+    <h1 class="hero-title">
+      Understand every conversation<br />
+      <span class="gradient-text" data-text="with AI-powered analytics">with AI-powered analytics</span>
+    </h1>
+    <p class="hero-subtitle">
+      Upload your WhatsApp export and instantly visualize patterns, sentiments, topics, and more — 100% private, all processing happens in your browser.
+    </p>
+
+    <!-- Drop zone -->
+    <div id="drop-zone" class="drop-zone" role="button" aria-label="Upload WhatsApp chat file">
+      <span class="drop-icon">📂</span>
+      <div class="drop-title">Drop your WhatsApp export here</div>
+      <div class="drop-subtitle">or click the button below to browse files</div>
+      <button id="upload-btn" class="btn btn-primary" type="button">
+        📁 &nbsp; Choose .txt or .zip File
+      </button>
+      <input id="file-input" type="file" accept=".txt,text/plain,.zip,application/zip" style="display:none" />
+    </div>
+
+    <!-- Supported formats -->
+    <div class="format-note">
+      <span class="format-chip">📋 12/31/23, 11:59 PM – Name: …</span>
+      <span class="format-chip">📋 [12/31/23, 23:59:59] Name: …</span>
+      <span class="format-chip">🗂 .zip (export with media)</span>
+    </div>
+
+    <!-- Progress bar (shown during parse) -->
+    <div id="parse-progress">
+      <div class="progress-label">
+        <span id="parse-status">Parsing…</span>
+      </div>
+      <div class="progress-track">
+        <div id="parse-progress-bar" class="progress-bar"></div>
+      </div>
+    </div>
+
+    <!-- Error banner -->
+    <div id="error-banner" class="error-banner">
+      <span class="error-icon">⚠</span>
+      <span id="error-msg">Something went wrong.</span>
+    </div>
+
+    <!-- Feature pills -->
+    <div class="feature-pills">
+      <div class="feature-pill"><div class="feature-pill-dot"></div> Timeline charts</div>
+      <div class="feature-pill"><div class="feature-pill-dot"></div> Activity heatmap</div>
+      <div class="feature-pill"><div class="feature-pill-dot"></div> Word cloud</div>
+      <div class="feature-pill"><div class="feature-pill-dot"></div> Emoji stats</div>
+      <div class="feature-pill"><div class="feature-pill-dot"></div> AI summary</div>
+      <div class="feature-pill"><div class="feature-pill-dot"></div> Toxicity detection</div>
+      <div class="feature-pill"><div class="feature-pill-dot"></div> Relationship score</div>
+    </div>
+
+  </div>
+</div>
+
+
+<!-- ════════════════════════════════════════════════════════════════════════════
+     DASHBOARD SCREEN
+     ════════════════════════════════════════════════════════════════════════════ -->
+<div id="dashboard-screen" class="screen hidden">
+
+  <!-- Navigation -->
+  <nav class="dash-nav">
+    <div class="nav-brand">
+      <div class="nav-brand-icon">💬</div>
+      WpAI Insights
+    </div>
+    <div class="nav-actions">
+      <button id="compare-btn" class="btn btn-ghost" type="button">
+        ⇄ Compare
+      </button>
+      <button id="export-btn" class="btn btn-ghost" type="button">
+        📸 Export
+      </button>
+      <button id="new-analysis-btn" class="btn btn-ghost" type="button">
+        ↩ New Analysis
+      </button>
+    </div>
+  </nav>
+
+  <div class="dash-body">
+
+    <!-- ── Info Strip ────────────────────────────────────────────────────── -->
+    <div class="info-row">
+      <div class="info-chip">
+        <span class="info-chip-label">Participants</span>
+        <span class="info-chip-value" id="info-participants">—</span>
+      </div>
+      <div class="info-chip">
+        <span class="info-chip-label">Duration</span>
+        <span class="info-chip-value" id="info-days">—</span>
+      </div>
+      <div class="info-chip">
+        <span class="info-chip-label">Avg / Day</span>
+        <span class="info-chip-value" id="info-avg">—</span>
+      </div>
+      <div class="info-chip">
+        <span class="info-chip-label">Peak Hour</span>
+        <span class="info-chip-value" id="info-peak-hour">—</span>
+      </div>
+      <div class="info-chip">
+        <span class="info-chip-label">Peak Day</span>
+        <span class="info-chip-value" id="info-peak-day">—</span>
+      </div>
+      <div class="info-chip">
+        <span class="info-chip-label">Format</span>
+        <span class="info-chip-value" id="info-format" style="font-size:11px; font-family: monospace">—</span>
+      </div>
+    </div>
+
+    <!-- ── Search ─────────────────────────────────────────────────────────── -->
+    <div class="card search-card">
+      <div class="section-header">
+        <div class="section-icon blue">🔍</div>
+        <span class="section-title">Search Chat</span>
+        <span class="section-subtitle">Find any message</span>
+      </div>
+      <input
+        id="chat-search-input"
+        type="text"
+        class="search-input"
+        placeholder="Search messages, senders, dates..."
+        autocomplete="off"
+      />
+      <div id="search-results" class="search-results"></div>
+      <div id="search-empty" class="search-empty hidden">No messages found.</div>
+    </div>
+
+    <!-- ── Stat Cards ─────────────────────────────────────────────────────── -->
+    <div class="stat-grid">
+      <div class="stat-card green">
+        <div class="stat-icon green">💬</div>
+        <div class="stat-body">
+          <div class="stat-label">Total Messages</div>
+          <div class="stat-value" id="stat-messages">0</div>
+        </div>
+      </div>
+      <div class="stat-card purple">
+        <div class="stat-icon purple">📝</div>
+        <div class="stat-body">
+          <div class="stat-label">Total Words</div>
+          <div class="stat-value" id="stat-words">0</div>
+        </div>
+      </div>
+      <div class="stat-card pink">
+        <div class="stat-icon pink">📎</div>
+        <div class="stat-body">
+          <div class="stat-label">Media Shared</div>
+          <div class="stat-value" id="stat-media">0</div>
+        </div>
+      </div>
+      <div class="stat-card orange">
+        <div class="stat-icon orange">🔗</div>
+        <div class="stat-body">
+          <div class="stat-label">Links Shared</div>
+          <div class="stat-value" id="stat-links">0</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Monthly Timeline + Day Chart ──────────────────────────────────── -->
+    <div class="charts-primary">
+      <div class="card">
+        <div class="section-header">
+          <div class="section-icon green">📈</div>
+          <span class="section-title">Monthly Activity</span>
+          <span class="section-subtitle">Messages per month</span>
+        </div>
+        <div class="chart-wrap">
+          <canvas id="chart-timeline"></canvas>
+        </div>
+      </div>
+      <div class="card">
+        <div class="section-header">
+          <div class="section-icon orange">📅</div>
+          <span class="section-title">Day of Week</span>
+          <span class="section-subtitle">Most active days</span>
+        </div>
+        <div class="chart-wrap">
+          <canvas id="chart-days"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Heatmap ────────────────────────────────────────────────────────── -->
+    <div class="card">
+      <div class="section-header">
+        <div class="section-icon blue">🌡</div>
+        <span class="section-title">Activity Heatmap</span>
+        <span class="section-subtitle">Messages by day × hour</span>
+      </div>
+      <div class="heatmap-wrap">
+        <canvas id="canvas-heatmap"></canvas>
+      </div>
+    </div>
+
+    <!-- ── Top Users + Emoji Chart ────────────────────────────────────────── -->
+    <div class="users-charts-grid">
+      <div class="card">
+        <div class="section-header">
+          <div class="section-icon purple">👥</div>
+          <span class="section-title">Most Active</span>
+          <span class="section-subtitle">By message count</span>
+        </div>
+        <div id="user-list" class="user-list"></div>
+      </div>
+      <div class="card">
+        <div class="section-header">
+          <div class="section-icon pink">😊</div>
+          <span class="section-title">Emoji Usage</span>
+          <span class="section-subtitle">Top emojis sent</span>
+        </div>
+        <div class="chart-wrap">
+          <canvas id="chart-emoji"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Emoji Per-User Table ───────────────────────────────────────────── -->
+    <div class="card">
+      <div class="section-header">
+        <div class="section-icon pink">📊</div>
+        <span class="section-title">Emoji Breakdown</span>
+        <span class="section-subtitle">Per participant</span>
+      </div>
+      <div class="emoji-table-wrap">
+        <table>
+          <thead id="emoji-table-head"></thead>
+          <tbody id="emoji-table-body"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ── Word Cloud ─────────────────────────────────────────────────────── -->
+    <div class="card">
+      <div class="section-header">
+        <div class="section-icon green">☁</div>
+        <span class="section-title">Word Cloud</span>
+        <span class="section-subtitle">Most used words (stopwords removed)</span>
+      </div>
+      <div class="wordcloud-wrap">
+        <div id="wordcloud-container"></div>
+      </div>
+    </div>
+
+    <!-- ── Fun Facts ──────────────────────────────────────────────────────── -->
+    <div class="card">
+      <div class="section-header">
+        <div class="section-icon orange">✨</div>
+        <span class="section-title">Fun Facts</span>
+        <span class="section-subtitle">Free stats, no AI needed</span>
+      </div>
+      <div class="fun-facts-grid">
+
+        <div class="fact-card">
+          <div class="fact-label">⚡ Avg Response Time</div>
+          <div class="fact-value" id="fact-response-time">—</div>
+          <div class="fact-sub">across the whole chat</div>
+        </div>
+
+        <div class="fact-card">
+          <div class="fact-label">🔥 Longest Streak</div>
+          <div class="fact-value" id="fact-streak">—</div>
+          <div class="fact-sub" id="fact-streak-range"></div>
+        </div>
+
+        <div class="fact-card">
+          <div class="fact-label">📅 Busiest Day</div>
+          <div class="fact-value" id="fact-busiest-day">—</div>
+          <div class="fact-sub" id="fact-busiest-day-count"></div>
+        </div>
+
+        <div class="fact-card">
+          <div class="fact-label">🏁 Top Conversation Starter</div>
+          <div class="fact-value" id="fact-starter">—</div>
+          <div class="fact-sub" id="fact-starter-days"></div>
+        </div>
+
+        <div class="fact-card wide">
+          <div class="fact-label">💬 First Message</div>
+          <div class="fact-quote" id="fact-first-message">—</div>
+          <div class="fact-sub" id="fact-first-message-meta"></div>
+        </div>
+
+        <div class="fact-card wide">
+          <div class="fact-label">🏆 Most Recent Message</div>
+          <div class="fact-quote" id="fact-last-message">—</div>
+          <div class="fact-sub" id="fact-last-message-meta"></div>
+        </div>
+
+      </div>
+
+      <!-- Per-user response time + avg message length breakdown -->
+      <div class="fact-divider"></div>
+      <div class="fact-subtitle">Fastest Responders</div>
+      <div id="fact-response-list" class="fact-list"></div>
+
+    </div>
+
+    <!-- ── Ghost / Double-Text Detector ──────────────────────────────────── -->
+    <div class="card">
+      <div class="section-header">
+        <div class="section-icon pink">👻</div>
+        <span class="section-title">Double-Text Detector</span>
+        <span class="section-subtitle">Who texts twice before getting a reply</span>
+      </div>
+      <div id="ghost-list" class="fact-list"></div>
+    </div>
+
+    <!-- ── Sentiment Trend (basic, non-AI) ─────────────────────────────────── -->
+    <div class="card">
+      <div class="section-header">
+        <div class="section-icon green">📈</div>
+        <span class="section-title">Mood Trend</span>
+        <span class="section-subtitle">Keyword-based, not AI</span>
+      </div>
+      <div class="chart-wrap">
+        <canvas id="chart-sentiment"></canvas>
+      </div>
+      <p class="sentiment-disclaimer">
+        ℹ️ This is a simple positive/negative keyword counter, not real sentiment analysis — treat it as a fun rough indicator, not a precise read on the relationship.
+      </p>
+    </div>
+
+    <!-- ── Milestones Timeline ──────────────────────────────────────────────── -->
+    <div class="card">
+      <div class="section-header">
+        <div class="section-icon orange">🏁</div>
+        <span class="section-title">Milestones</span>
+        <span class="section-subtitle">Key moments in the chat</span>
+      </div>
+      <div id="milestones-timeline" class="milestones-timeline"></div>
+    </div>
+
+    <!-- ── AI Insights ────────────────────────────────────────────────────── -->
+    <div id="ai-section" class="card">
+      <div class="section-header">
+        <div class="section-icon ai">✦</div>
+        <span class="section-title">AI Insights</span>
+        <span class="ai-badge">AI Generated</span>
+        <span class="section-subtitle" style="margin-left: 8px;">Powered by Claude</span>
+      </div>
+
+      <div class="ai-cta">
+        <div class="ai-cta-icon">🤖</div>
+        <div class="ai-cta-body">
+          <div class="ai-cta-title">Get deep AI-powered analysis</div>
+          <div class="ai-cta-subtitle">
+            Claude will analyze a sample of your messages to detect toxicity, identify languages, generate a chat summary, surface main topics, and calculate a relationship score.
+          </div>
+          <button id="run-ai-btn" class="btn btn-secondary" type="button">
+            ✦ &nbsp; Run AI Analysis
+          </button>
+          <div class="ai-privacy-note">
+            🔒 Only a sample of messages is sent to the server — no data is stored.
+          </div>
+        </div>
+      </div>
+
+      <!-- Error state -->
+      <div id="ai-error"></div>
+
+      <!-- Skeleton loader -->
+      <div id="ai-skeleton">
+        <div class="skeleton-row">
+          <div class="skeleton-card"></div>
+          <div class="skeleton-card"></div>
+        </div>
+        <div class="skeleton-row">
+          <div class="skeleton-card tall"></div>
+          <div class="skeleton-card tall"></div>
+        </div>
+      </div>
+
+      <!-- Results grid -->
+      <div id="ai-results">
+
+        <!-- Summary -->
+        <div class="ai-card" style="grid-column: 1 / -1;">
+          <div class="ai-card-title">
+            <span class="dot dot-green"></span> Chat Summary
+          </div>
+          <p id="ai-summary-text"></p>
+        </div>
+
+        <!-- Topics -->
+        <div class="ai-card">
+          <div class="ai-card-title">
+            <span class="dot dot-purple"></span> Main Topics
+          </div>
+          <div id="ai-topics" class="topics-wrap"></div>
+        </div>
+
+        <!-- Languages -->
+        <div class="ai-card">
+          <div class="ai-card-title">
+            <span class="dot dot-blue"></span> Languages Detected
+          </div>
+          <div id="ai-languages"></div>
+        </div>
+
+        <!-- Toxicity -->
+        <div class="ai-card">
+          <div class="ai-card-title">
+            <span class="dot dot-pink"></span> Toxicity Analysis
+          </div>
+          <div class="tox-score-row">
+            <div class="tox-score-value" id="ai-tox-score">0</div>
+            <span class="tox-level-badge" id="ai-tox-label">Safe</span>
+          </div>
+          <div class="tox-bar-wrap">
+            <div class="tox-bar" id="ai-tox-bar"></div>
+          </div>
+          <p class="tox-explanation" id="ai-tox-explanation"></p>
+          <div class="tox-flags">
+            <ul id="ai-tox-flags"></ul>
+          </div>
+        </div>
+
+        <!-- Relationship Score -->
+        <div class="ai-card">
+          <div class="ai-card-title">
+            <span class="dot dot-orange"></span> Relationship Score
+          </div>
+          <div class="rel-score-wrap">
+            <div class="rel-score-circle">
+              <div class="rel-score-number" id="ai-rel-score">—</div>
+              <div class="rel-score-label">/ 100</div>
+            </div>
+            <div class="rel-label-text" id="ai-rel-label"></div>
+          </div>
+          <div class="rel-bar-wrap">
+            <div class="rel-bar" id="ai-rel-bar"></div>
+          </div>
+          <p class="rel-explanation" id="ai-rel-explanation"></p>
+          <ul class="rel-factors" id="ai-rel-factors"></ul>
+        </div>
+
+      </div><!-- /#ai-results -->
+    </div><!-- /#ai-section -->
+
+  </div><!-- /.dash-body -->
+</div><!-- /#dashboard-screen -->
+
+<!-- ════════════════════════════════════════════════════════════════════════════
+     COMPARE MODAL — multi-chat comparison
+     ════════════════════════════════════════════════════════════════════════════ -->
+<div id="compare-modal" class="compare-modal hidden">
+  <div class="compare-modal-backdrop"></div>
+  <div class="compare-modal-content">
+    <div class="compare-modal-header">
+      <span class="compare-modal-title">Compare Two Chats</span>
+      <button id="compare-close-btn" class="compare-close-btn" type="button" aria-label="Close">✕</button>
+    </div>
+
+    <div id="compare-upload-step">
+      <p class="compare-instructions">Upload a second WhatsApp export to compare side-by-side with your current chat.</p>
+      <div id="compare-drop-zone" class="drop-zone compare-drop-zone" role="button" aria-label="Upload second chat file">
+        <span class="drop-icon">📂</span>
+        <div class="drop-title">Drop second chat here</div>
+        <div class="drop-subtitle">or click to browse files</div>
+        <button id="compare-upload-btn" class="btn btn-primary" type="button">
+          📁 &nbsp; Choose .txt or .zip File
+        </button>
+        <input id="compare-file-input" type="file" accept=".txt,text/plain,.zip,application/zip" style="display:none" />
+      </div>
+      <div id="compare-error" class="error-banner compare-error">
+        <span class="error-icon">⚠</span>
+        <span id="compare-error-msg"></span>
+      </div>
+    </div>
+
+    <div id="compare-results-step" class="hidden">
+      <div class="compare-table-wrap">
+        <table class="compare-table">
+          <thead>
+            <tr>
+              <th>Metric</th>
+              <th id="compare-col-a-label">Chat A</th>
+              <th id="compare-col-b-label">Chat B</th>
+            </tr>
+          </thead>
+          <tbody id="compare-table-body"></tbody>
+        </table>
+      </div>
+      <button id="compare-reset-btn" class="btn btn-ghost compare-reset-btn" type="button">
+        ↺ Compare a different chat
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ─── Scripts ─────────────────────────────────────────────────────────────── -->
+<script src="parser.js"></script>
+<script src="stats.js"></script>
+<script src="charts.js"></script>
+<script src="wordcloud.js"></script>
+<script src="countup.js"></script>
+<script src="app.js"></script>
+
+</body>
+</html>
