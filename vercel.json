@@ -1,17 +1,25 @@
 {
   "version": 2,
   "builds": [
-    { "src": "server.js", "use": "@vercel/node" }
+    {
+      "src": "server.js",
+      "use": "@vercel/node",
+      "config": {
+        "includeFiles": [
+          "index.html",
+          "style.css",
+          "app.js",
+          "parser.js",
+          "stats.js",
+          "charts.js",
+          "wordcloud.js",
+          "countup.js"
+        ]
+      }
+    }
   ],
   "routes": [
     { "src": "/api/(.*)", "dest": "/server.js" },
-    { "src": "/style.css", "dest": "/style.css" },
-    { "src": "/app.js", "dest": "/app.js" },
-    { "src": "/parser.js", "dest": "/parser.js" },
-    { "src": "/stats.js", "dest": "/stats.js" },
-    { "src": "/charts.js", "dest": "/charts.js" },
-    { "src": "/wordcloud.js", "dest": "/wordcloud.js" },
-    { "src": "/countup.js", "dest": "/countup.js" },
-    { "src": "/(.*)", "dest": "/index.html" }
+    { "src": "/(.*)", "dest": "/server.js" }
   ]
 }
